@@ -1,9 +1,7 @@
 // src/components/WeatherCard.tsx
 import { Text, View } from "react-native";
-// Gunakan ../ untuk naik satu folder ke src/types
-import { WeatherCardProps } from "../types/cuaca";
-// Gunakan ../ untuk naik satu folder ke src/constants
 import { spacing, typeScale } from "../src/constants/styles";
+import { WeatherCardProps } from "../types/cuaca";
 
 export default function WeatherCard({
   kota,
@@ -13,6 +11,8 @@ export default function WeatherCard({
   const warnaAQI = tingkatAQI === "BAIK" ? "green" : "orange";
   return (
     <View
+      accessible
+      accessibilityLabel={`Cuaca ${kota}, suhu ${suhu} derajat, kualitas udara ${tingkatAQI}`}
       style={{
         padding: spacing.sedang,
         borderRadius: 8,

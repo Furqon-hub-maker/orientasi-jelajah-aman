@@ -1,4 +1,3 @@
-// src/app/(tabs)/index.tsx
 import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -8,17 +7,18 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { HasilGeocoding } from "../../../types/geocoding";
-import { DataCuacaLengkap, DataKualitasUdara } from "../../../types/weather";
 import AtribusiCuaca from "../../../components/AtribusiCuaca";
 import SearchBox from "../../../components/SearchBox";
 import WeatherCard from "../../../components/WeatherCard";
+import { HasilGeocoding } from "../../../types/geocoding";
+import { DataCuacaLengkap, DataKualitasUdara } from "../../../types/weather";
 import { labelKodeCuaca } from "../../constants/weatherCodes";
 import { useDebounce } from "../../hooks/use-debounce";
 import { ambilKualitasUdara } from "../../services/airQualityService";
 import { cariKota } from "../../services/geocodingService";
 import { konversiTingkatAQI } from "../../services/weatherAdapter";
 import { ambilCuaca } from "../../services/weatherService";
+
 export default function HalamanUtama() {
   const [teksCari, setTeksCari] = useState("");
   const [hasilPencarian, setHasilPencarian] = useState<HasilGeocoding[]>([]);
@@ -29,8 +29,10 @@ export default function HalamanUtama() {
   );
   const [sedangMemuat, setSedangMemuat] = useState(false);
   const [pesanError, setPesanError] = useState<string | null>(null);
+
   const teksTertunda = useDebounce(teksCari, 500);
-  const requestIdRef = useRef(0); // pencegah race condition
+  const requestIdRef = useRef(0);
+
   useEffect(() => {
     if (teksTertunda.trim().length === 0) {
       setHasilPencarian([]);
@@ -40,17 +42,22 @@ export default function HalamanUtama() {
       .then(setHasilPencarian)
       .catch(() => setHasilPencarian([]));
   }, [teksTertunda]);
+
   async function pilihKota(kota: HasilGeocoding) {
     setKotaTerpilih(kota);
+    setHasilPencarian([]);
     const idSaatIni = ++requestIdRef.current;
     setSedangMemuat(true);
     setPesanError(null);
+
     try {
       const [dataCuaca, dataAQI] = await Promise.all([
         ambilCuaca(kota.latitude, kota.longitude),
         ambilKualitasUdara(kota.latitude, kota.longitude),
       ]);
-      if (idSaatIni !== requestIdRef.current) return; // hasil basi, abaikan
+
+      if (idSaatIni !== requestIdRef.current) return;
+
       setCuaca(dataCuaca);
       setKualitasUdara(dataAQI);
     } catch (err) {
@@ -60,38 +67,56 @@ export default function HalamanUtama() {
       if (idSaatIni === requestIdRef.current) setSedangMemuat(false);
     }
   }
+
   return (
     <SafeAreaView style={{ flex: 1, padding: 16, gap: 16 }}>
       <SearchBox onCari={setTeksCari} />
+
       {hasilPencarian.map((kota) => (
         <TouchableOpacity key={kota.id} onPress={() => pilihKota(kota)}>
-          <Text>{kota.name}</Text>
+          <Text style={{ paddingVertical: 8, fontSize: 16 }}>{kota.name}</Text>
         </TouchableOpacity>
       ))}
-      {sedangMemuat && <ActivityIndicator />}
+
+      {sedangMemuat && <ActivityIndicator size="large" />}
+
       {pesanError && (
-        <View>
-          <Text>{pesanError}</Text>
+        <View style={{ alignItems: "center", gap: 8 }}>
+          <Text style={{ color: "red" }}>{pesanError}</Text>
           <Button
             title="Coba Lagi"
             onPress={() => kotaTerpilih && pilihKota(kotaTerpilih)}
           />
         </View>
       )}
+
       {cuaca && kualitasUdara && kotaTerpilih && !sedangMemuat && (
-        <WeatherCard
-          kota={kotaTerpilih.name}
-          suhu={cuaca.saatIni.suhu}
-          tingkatAQI={konversiTingkatAQI(kualitasUdara.indeksAQI)}
-          indeksAQI={kualitasUdara.indeksAQI}
-        />
+        <View style={{ gap: 12 }}>
+          <WeatherCard
+            kota={kotaTerpilih.name}
+            suhu={cuaca.saatIni.suhu}
+            tingkatAQI={konversiTingkatAQI(kualitasUdara.indeksAQI)}
+            indeksAQI={kualitasUdara.indeksAQI}
+          />
+
+          {/* Latihan Mandiri 1: Suhu Maksimal & Minimal Harian */}
+          <Text style={{ fontSize: 14, color: "#444" }}>
+            Suhu Harian: Max {cuaca.harian.suhuMaksimal[0]}°C / Min{" "}
+            {cuaca.harian.suhuMinimal[0]}°C
+          </Text>
+
+          <Text style={{ fontSize: 12, color: "#888" }}>
+            Kondisi: {labelKodeCuaca(cuaca.saatIni.kodeCuaca)} | Angin:{" "}
+            {cuaca.saatIni.kecepatanAngin} km/j
+          </Text>
+
+          {/* Latihan Mandiri 2: Tampilan PM2.5 dan PM10 */}
+          <Text style={{ fontSize: 11, color: "#666", textAlign: "center" }}>
+            PM2.5: {kualitasUdara.pm25} µg/m³ | PM10: {kualitasUdara.pm10} µg/m³
+          </Text>
+        </View>
       )}
-      {cuaca && (
-        <Text style={{ fontSize: 12, color: "#888" }}>
-          Kondisi: {labelKodeCuaca(cuaca.saatIni.kodeCuaca)} • Angin
-          {cuaca.saatIni.kecepatanAngin} km/j
-        </Text>
-      )}
+
       <AtribusiCuaca />
     </SafeAreaView>
   );

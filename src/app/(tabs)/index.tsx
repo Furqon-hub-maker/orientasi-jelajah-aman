@@ -1,3 +1,4 @@
+import { router } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -7,6 +8,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+
 import AtribusiCuaca from "../../../components/AtribusiCuaca";
 import SearchBox from "../../../components/SearchBox";
 import WeatherCard from "../../../components/WeatherCard";
@@ -16,7 +18,10 @@ import { labelKodeCuaca } from "../../constants/weatherCodes";
 import { useDebounce } from "../../hooks/use-debounce";
 import { ambilKualitasUdara } from "../../services/airQualityService";
 import { cariKota } from "../../services/geocodingService";
-import { ambilKoordinatSaatIni, mintaIzinLokasi } from "../../services/locationService";
+import {
+  ambilKoordinatSaatIni,
+  mintaIzinLokasi,
+} from "../../services/locationService";
 import { konversiTingkatAQI } from "../../services/weatherAdapter";
 import { ambilCuaca } from "../../services/weatherService";
 
@@ -74,11 +79,15 @@ export default function HalamanUtama() {
   async function gunakanLokasiSaatIni() {
     const status = await mintaIzinLokasi();
     if (status === "denied") {
-      setPesanLokasi("Izin lokasi ditolak. Silakan cari kota secara manual di atas.");
+      setPesanLokasi(
+        "Izin lokasi ditolak. Silakan cari kota secara manual di atas.",
+      );
       return;
     }
     if (status === "unavailable") {
-      setPesanLokasi("Layanan lokasi tidak aktif di perangkat ini. Silakan cari kota secara manual.");
+      setPesanLokasi(
+        "Layanan lokasi tidak aktif di perangkat ini. Silakan cari kota secara manual.",
+      );
       return;
     }
     setPesanLokasi(null);
@@ -125,7 +134,6 @@ export default function HalamanUtama() {
             indeksAQI={kualitasUdara.indeksAQI}
           />
 
-          {/* Latihan Mandiri 1: Suhu Maksimal & Minimal Harian */}
           <Text style={{ fontSize: 14, color: "#444" }}>
             Suhu Harian: Max {cuaca.harian.suhuMaksimal[0]}°C / Min{" "}
             {cuaca.harian.suhuMinimal[0]}°C
@@ -136,10 +144,24 @@ export default function HalamanUtama() {
             {cuaca.saatIni.kecepatanAngin} km/j
           </Text>
 
-          {/* Latihan Mandiri 2: Tampilan PM2.5 dan PM10 */}
           <Text style={{ fontSize: 11, color: "#666", textAlign: "center" }}>
             PM2.5: {kualitasUdara.pm25} µg/m³ | PM10: {kualitasUdara.pm10} µg/m³
           </Text>
+
+          <Button
+            title="Tambahkan ke Favorit"
+            onPress={() =>
+              router.push({
+                pathname: "/tambah-favorit",
+                params: {
+                  id: String(kotaTerpilih.id),
+                  nama: kotaTerpilih.name,
+                  lat: String(kotaTerpilih.latitude),
+                  lon: String(kotaTerpilih.longitude),
+                },
+              })
+            }
+          />
         </View>
       )}
 

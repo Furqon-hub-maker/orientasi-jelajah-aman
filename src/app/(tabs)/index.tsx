@@ -1,59 +1,62 @@
-import { router } from "expo-router";
-import { useEffect, useRef, useState } from "react";
-import {
-  ActivityIndicator,
-  Button,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { View, Text, ActivityIndicator, Button, TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-
-import AtribusiCuaca from "../../../components/AtribusiCuaca";
+import { router, useFocusEffect } from "expo-router";
 import SearchBox from "../../../components/SearchBox";
 import WeatherCard from "../../../components/WeatherCard";
+import AtribusiCuaca from "../../../components/AtribusiCuaca";
+import { useDebounce } from "../../hooks/use-debounce";
+import { cariKota } from "../../services/geocodingService";
+import { ambilCuaca } from "../../services/weatherService";
+import { ambilKualitasUdara } from "../../services/airQualityService";
+import { konversiTingkatAQI } from "../../services/weatherAdapter";
+import { labelKodeCuaca } from "../../constants/weatherCodes";
+import { mintaIzinLokasi, ambilKoordinatSaatIni } from "../../services/locationService";
+import { ambilSemuaFavorit } from "../../services/favoritStorage";
 import { HasilGeocoding } from "../../../types/geocoding";
 import { DataCuacaLengkap, DataKualitasUdara } from "../../../types/weather";
-import { labelKodeCuaca } from "../../constants/weatherCodes";
-import { useDebounce } from "../../hooks/use-debounce";
-import { ambilKualitasUdara } from "../../services/airQualityService";
-import { cariKota } from "../../services/geocodingService";
-import {
-  ambilKoordinatSaatIni,
-  mintaIzinLokasi,
-} from "../../services/locationService";
-import { konversiTingkatAQI } from "../../services/weatherAdapter";
-import { ambilCuaca } from "../../services/weatherService";
 
 export default function HalamanUtama() {
   const [teksCari, setTeksCari] = useState("");
   const [hasilPencarian, setHasilPencarian] = useState<HasilGeocoding[]>([]);
   const [kotaTerpilih, setKotaTerpilih] = useState<HasilGeocoding | null>(null);
   const [cuaca, setCuaca] = useState<DataCuacaLengkap | null>(null);
-  const [kualitasUdara, setKualitasUdara] = useState<DataKualitasUdara | null>(
-    null,
-  );
+  const [kualitasUdara, setKualitasUdara] = useState<DataKualitasUdara | null>(null);
   const [sedangMemuat, setSedangMemuat] = useState(false);
   const [pesanError, setPesanError] = useState<string | null>(null);
+  const [pesanLokasi, setPesanLokasi] = useState<string | null>(null);
+  const [sudahFavorit, setSudahFavorit] = useState(false);
 
   const teksTertunda = useDebounce(teksCari, 500);
   const requestIdRef = useRef(0);
 
-  const [pesanLokasi, setPesanLokasi] = useState<string | null>(null);
+  // Latihan Mandiri 3: Cek apakah kota terpilih sudah ada di favorit
+  const cekStatusFavorit = useCallback(async (kotaId: number) => {
+    const daftar = await ambilSemuaFavorit();
+    const ada = daftar.some((k) => k.id === kotaId);
+    setSudahFavorit(ada);
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (kotaTerpilih) {
+        cekStatusFavorit(kotaTerpilih.id);
+      }
+    }, [kotaTerpilih, cekStatusFavorit])
+  );
 
   useEffect(() => {
     if (teksTertunda.trim().length === 0) {
       setHasilPencarian([]);
       return;
     }
-    cariKota(teksTertunda)
-      .then(setHasilPencarian)
-      .catch(() => setHasilPencarian([]));
+    cariKota(teksTertunda).then(setHasilPencarian).catch(() => setHasilPencarian([]));
   }, [teksTertunda]);
 
   async function pilihKota(kota: HasilGeocoding) {
     setKotaTerpilih(kota);
     setHasilPencarian([]);
+    cekStatusFavorit(kota.id);
     const idSaatIni = ++requestIdRef.current;
     setSedangMemuat(true);
     setPesanError(null);
@@ -79,15 +82,11 @@ export default function HalamanUtama() {
   async function gunakanLokasiSaatIni() {
     const status = await mintaIzinLokasi();
     if (status === "denied") {
-      setPesanLokasi(
-        "Izin lokasi ditolak. Silakan cari kota secara manual di atas.",
-      );
+      setPesanLokasi("Izin lokasi ditolak. Silakan cari kota secara manual di atas.");
       return;
     }
     if (status === "unavailable") {
-      setPesanLokasi(
-        "Layanan lokasi tidak aktif di perangkat ini. Silakan cari kota secara manual.",
-      );
+      setPesanLokasi("Layanan lokasi tidak aktif di perangkat ini. Silakan cari kota secara manual.");
       return;
     }
     setPesanLokasi(null);
@@ -105,7 +104,7 @@ export default function HalamanUtama() {
     <SafeAreaView style={{ flex: 1, padding: 16, gap: 16 }}>
       <SearchBox onCari={setTeksCari} />
       <Button title="Gunakan Lokasi Saat Ini" onPress={gunakanLokasiSaatIni} />
-      {pesanLokasi && <Text>{pesanLokasi}</Text>}
+      {pesanLokasi && <Text style={{ color: "red" }}>{pesanLokasi}</Text>}
 
       {hasilPencarian.map((kota) => (
         <TouchableOpacity key={kota.id} onPress={() => pilihKota(kota)}>
@@ -135,21 +134,21 @@ export default function HalamanUtama() {
           />
 
           <Text style={{ fontSize: 14, color: "#444" }}>
-            Suhu Harian: Max {cuaca.harian.suhuMaksimal[0]}°C / Min{" "}
-            {cuaca.harian.suhuMinimal[0]}°C
+            Suhu Harian: Max {cuaca.harian.suhuMaksimal[0]}°C / Min {cuaca.harian.suhuMinimal[0]}°C
           </Text>
 
           <Text style={{ fontSize: 12, color: "#888" }}>
-            Kondisi: {labelKodeCuaca(cuaca.saatIni.kodeCuaca)} | Angin:{" "}
-            {cuaca.saatIni.kecepatanAngin} km/j
+            Kondisi: {labelKodeCuaca(cuaca.saatIni.kodeCuaca)} | Angin: {cuaca.saatIni.kecepatanAngin} km/j
           </Text>
 
           <Text style={{ fontSize: 11, color: "#666", textAlign: "center" }}>
             PM2.5: {kualitasUdara.pm25} µg/m³ | PM10: {kualitasUdara.pm10} µg/m³
           </Text>
 
+          {/* Latihan Mandiri 3: Nonaktifkan tombol jika sudah menjadi favorit */}
           <Button
-            title="Tambahkan ke Favorit"
+            title={sudahFavorit ? "Sudah di Favorit" : "Tambahkan ke Favorit"}
+            disabled={sudahFavorit}
             onPress={() =>
               router.push({
                 pathname: "/tambah-favorit",
